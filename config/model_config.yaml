@@ -1,0 +1,33 @@
+classifier:
+  backbone: "vinai/bertweet-base"
+  max_length: 128
+  batch_size: 16
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  max_epochs: 10
+  early_stopping_patience: 3
+  confidence_threshold: 0.70
+  num_classes: 7
+  class_names: ["flood", "earthquake", "fire", "accident", "violence", "storm", "other"]
+
+credibility:
+  threshold_credible: 0.60
+  threshold_uncertain: 0.30
+  weights:
+    cross_corroboration: 0.30
+    linguistic_certainty: 0.20
+    has_media: 0.15
+    news_domain_url: 0.15
+    engagement_rate: 0.10
+    geo_confidence: 0.10
+
+clustering:
+  sbert_model: "paraphrase-multilingual-mpnet-base-v2"
+  dbscan_eps: 0.35
+  dbscan_min_samples: 2
+  distance_weights:
+    semantic: 0.50
+    temporal: 0.30
+    spatial: 0.20
+  temporal_window_hours: 4
+  spatial_window_km: 50

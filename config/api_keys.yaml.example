@@ -1,0 +1,26 @@
+# API Keys Configuration Template
+# Copy this file to config/api_keys.yaml and fill in your credentials.
+# IMPORTANT: config/api_keys.yaml is in .gitignore — never commit real keys.
+
+twitter:
+  bearer_token: "YOUR_TWITTER_BEARER_TOKEN"
+  api_key: "YOUR_TWITTER_API_KEY"
+  api_secret: "YOUR_TWITTER_API_SECRET"
+
+telegram:
+  api_id: 0000000
+  api_hash: "YOUR_TELEGRAM_API_HASH"
+  session_name: "crisis_detector"
+
+nominatim:
+  email: "your_email@example.com"
+
+bmkg:
+  base_url: "https://data.bmkg.go.id/DataMKG/TEWS/"
+
+llm:
+  provider: "gemini"
+  api_key: "YOUR_GEMINI_API_KEY"
+
+petabencana:
+  base_url: "https://data.petabencana.id/reports"

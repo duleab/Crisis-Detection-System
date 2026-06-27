@@ -1,0 +1,86 @@
+# ─── Secrets & Credentials (NEVER push these) ────────────────────────────────
+config/api_keys.yaml
+.env
+.env.*
+*.env
+secrets.yaml
+secrets.json
+credentials.json
+kaggle.json
+token.json
+service_account*.json
+
+# ─── Large Data Files ─────────────────────────────────────────────────────────
+data/raw/
+data/processed/
+data/external/training_data.csv
+data/external/posts_unified*.csv
+*.csv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# ─── Model Weights (too large for GitHub, use HuggingFace Hub or Google Drive) ─
+models/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+model_weights/
+tokenizer/
+
+# ─── Notebook Outputs / Cache ─────────────────────────────────────────────────
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── Python Virtual Environment ───────────────────────────────────────────────
+venv/
+env/
+.venv/
+.conda/
+*.egg
+
+# ─── Logs & Temporary Files ───────────────────────────────────────────────────
+*.log
+*.tmp
+*.temp
+logs/
+runs/
+
+# ─── OS & Editor Files ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── Large Output Files ───────────────────────────────────────────────────────
+outputs/maps/*.html
+outputs/figures/*.png
+outputs/figures/*.jpg
+events_dashboard.geojson
+
+# ─── What IS allowed to push ──────────────────────────────────────────────────
+# notebooks/*.ipynb          ← yes, push notebooks
+# config/model_config.yaml   ← yes, safe (no secrets)
+# config/paths.yaml          ← yes, safe (no secrets)
+# config/api_keys.yaml.example ← yes, push the TEMPLATE only
+# data/external/*.json       ← yes (lexicons, mappings)
+# data/external/*.txt        ← yes (lexicons)
+# src/*.py                   ← yes
+# scripts/*.py               ← yes
+# README.md                  ← yes
+# requirements.txt           ← yes

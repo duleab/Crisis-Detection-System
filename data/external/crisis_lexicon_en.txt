@@ -1,0 +1,11 @@
+flood
+earthquake
+fire
+explosion
+accident
+violence
+disaster
+emergency
+storm
+cyclone
+tsunami

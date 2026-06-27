@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Crisis Detection — Dashboard</title>
+  <meta name="description"
+    content="Interactive dashboard for the Real-Time Crisis Detection System. Monitors floods, earthquakes, fires, accidents, violence, and storms across Indonesia using XLM-RoBERTa." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root {
+      --bg: #03040B;
+      --card-bg: rgba(255, 255, 255, 0.02);
+      --card-bg-hover: rgba(255, 255, 255, 0.05);
+      --border: rgba(255, 255, 255, 0.05);
+      --border-hover: rgba(255, 255, 255, 0.1);
+      --text-1: #ffffff;
+      --text-2: rgba(255, 255, 255, 0.6);
+      --text-3: rgba(255, 255, 255, 0.4);
+      --text-4: rgba(255, 255, 255, 0.2);
+      --brand-blue: #3b82f6;
+      --brand-purple: #8B5CF6;
+      --brand-cyan: #06b6d4;
+
+      --flood: #3b82f6;
+      --quake: #f59e0b;
+      --fire: #ef4444;
+      --accident: #64748b;
+      --violence: #a855f7;
+      --storm: #06b6d4;
+      --other: #10b981;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text-1);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* ── Aurora Blobs ── */
+    @keyframes aurora-float {
+      0% {
+        transform: translate(0, 0) scale(1) rotate(0deg);
+      }
+
+      50% {
+        transform: translate(5%, 10%) scale(1.1) rotate(10deg);
+      }
+
+      100% {
+        transform: translate(-5%, 5%) scale(0.9) rotate(-5deg);
+      }
+    }
+
+    .aurora-blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      mix-blend-mode: screen;
+      animation: aurora-float 20s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Glass Card ── */
+    .glass {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      transition: all 0.4s ease;
+    }
+
+    .glass:hover {
+      background: var(--card-bg-hover);
+      border-color: var(--border-hover);
+    }
+
+    /* ── Reveal Animations ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .stagger-1 {
+      transition-delay: 0.04s;
+    }
+
+    .stagger-2 {
+      transition-delay: 0.08s;
+    }
+
+    .stagger-3 {
+      transition-delay: 0.12s;
+    }
+
+    .stagger-4 {
+      transition-delay: 0.16s;
+    }
+
+    .stagger-5 {
+      transition-delay: 0.20s;
+    }
+
+    .stagger-6 {
+      transition-delay: 0.24s;
+    }
+
+    .stagger-7 {
+      transition-delay: 0.28s;
+    }
+
+    .stagger-8 {
+      transition-delay: 0.32s;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .logo-icon::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+    }
+
+    .logo-icon i {
+      width: 22px;
+      height: 22px;
+      color: var(--brand-blue);
+    }
+
+    .logo-text h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-text p {
+      font-size: 12px;
+      color: var(--text-3);
+      margin-top: 2px;
+      font-weight: 400;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    @keyframes pulse-dot {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.4;
+        transform: scale(0.7);
+      }
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      animation: pulse-dot 1.5s ease-in-out infinite;
+      position: relative;
+    }
+
+    .live-dot::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      animation: pulse-ring 2s ease-out infinite;
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(1);
+        opacity: 0.6;
+      }
+
+      100% {
+        transform: scale(2.5);
+        opacity: 0;
+      }
+    }
+
+    /* ── Section Label ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Stat Cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--stat-color, var(--brand-blue));
+      opacity: 0.6;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-label i {
+      width: 12px;
+      height: 12px;
+      opacity: 0.5;
+    }
+
+    .stat-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-4);
+      margin-top: 8px;
+    }
+
+    /* ── Layout Grids ── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 900px) {
+
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .stat-value {
+        font-size: 24px;
+      }
+    }
+
+    /* ── Card Inner ── */
+    .card {
+      padding: 24px;
+    }
+
+    .card-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title i {
+      width: 16px;
+      height: 16px;
+      color: var(--text-3);
+    }
+
+    /* ── Map ── */
+    #crisis-map {
+      height: 460px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .badge-flood {
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--flood);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+
+    .badge-earthquake {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--quake);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .badge-fire {
+      background: rgba(239, 68, 68, 0.12);
+      color: var(--fire);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+
+    .badge-accident {
+      background: rgba(100, 116, 139, 0.12);
+      color: var(--accident);
+      border: 1px solid rgba(100, 116, 139, 0.25);
+    }
+
+    .badge-violence {
+      background: rgba(168, 85, 247, 0.12);
+      color: var(--violence);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+    }
+
+    .badge-storm {
+      background: rgba(6, 182, 212, 0.12);
+      color: var(--storm);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
+
+    .badge-other {
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--other);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .sev-low {
+      background: rgba(16, 185, 129, 0.08);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .sev-medium {
+      background: rgba(245, 158, 11, 0.08);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .sev-high {
+      background: rgba(239, 68, 68, 0.08);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    /* ── Filter Tabs ── */
+    .filter-bar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--border-hover);
+      color: var(--text-2);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .filter-btn.active {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: var(--text-1);
+    }
+
+    /* ── Events Table ── */
+    .events-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .events-table th {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-4);
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .events-table td {
+      padding: 12px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      vertical-align: middle;
+    }
+
+    .events-table tr {
+      transition: background 0.2s;
+    }
+
+    .events-table tbody tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .events-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .event-name {
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .event-loc {
+      font-size: 11px;
+      color: var(--text-4);
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .event-loc i {
+      width: 10px;
+      height: 10px;
+    }
+
+    /* ── F1 Bars ── */
+    .f1-row {
+      margin-bottom: 16px;
+    }
+
+    .f1-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .f1-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 13px;
+      align-items: center;
+    }
+
+    .f1-label {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .f1-label-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .f1-score {
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+
+    .f1-bar-bg {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .f1-bar {
+      height: 100%;
+      border-radius: 3px;
+      width: 0%;
+      transition: width 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .f1-bar.active {
+      width: var(--w);
+    }
+
+    /* ── Training Rows ── */
+    .epoch-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .epoch-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .epoch-num {
+      width: 68px;
+      color: var(--text-4);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .epoch-acc-bar-bg {
+      flex: 1;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .epoch-acc-bar {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
+      width: 0%;
+      transition: width 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .epoch-acc-bar.active {
+      width: var(--w);
+    }
+
+    .epoch-val {
+      width: 50px;
+      text-align: right;
+      font-weight: 600;
+      color: var(--brand-blue);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+
+    .epoch-best {
+      color: var(--brand-purple) !important;
+    }
+
+    /* ── Enrichment Cards ── */
+    .enrich-card {
+      text-align: center;
+      padding: 14px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      transition: all 0.3s;
+    }
+
+    .enrich-card:hover {
+      background: var(--card-bg-hover);
+      border-color: var(--border-hover);
+    }
+
+    .enrich-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-4);
+      margin-bottom: 6px;
+    }
+
+    .enrich-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .enrich-sub {
+      font-size: 10px;
+      color: var(--text-4);
+      margin-top: 2px;
+    }
+
+    /* ── SHAP ── */
+    .shap-block {
+      margin-bottom: 20px;
+    }
+
+    .shap-block:last-child {
+      margin-bottom: 0;
+    }
+
+    .shap-text {
+      font-size: 13px;
+      color: var(--text-3);
+      margin-bottom: 10px;
+      font-style: italic;
+      line-height: 1.6;
+      padding-left: 12px;
+      border-left: 2px solid var(--border);
+    }
+
+    .shap-pred {
+      font-size: 11px;
+      color: var(--text-4);
+      margin-bottom: 8px;
+    }
+
+    .shap-pred strong {
+      font-style: normal;
+    }
+
+    .shap-tokens {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .shap-badge {
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin: 0;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+    }
+
+    .shap-pos {
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .shap-neg {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    /* ── Credibility ── */
+    .cred-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .cred-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .cred-source {
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cred-source i {
+      width: 14px;
+      height: 14px;
+      color: var(--text-4);
+    }
+
+    .cred-meter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cred-bar-bg {
+      width: 110px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .cred-bar {
+      height: 100%;
+      border-radius: 2px;
+      width: 0%;
+      transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .cred-bar.active {
+      width: var(--w);
+    }
+
+    .cred-val {
+      width: 36px;
+      text-align: right;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-3);
+    }
+
+    /* ── Summary Row ── */
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-4);
+      padding: 6px 0;
+    }
+
+    .summary-val {
+      font-weight: 600;
+    }
+
+    /* ── Architecture Flow ── */
+    .arch-flow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0;
+      justify-content: center;
+    }
+
+    .arch-step {
+      text-align: center;
+      padding: 16px 18px;
+      border-radius: 12px;
+      transition: all 0.3s;
+      min-width: 100px;
+    }
+
+    .arch-step:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .arch-step-core {
+      background: rgba(59, 130, 246, 0.06);
+      border: 1px solid rgba(59, 130, 246, 0.15);
+      border-radius: 12px;
+    }
+
+    .arch-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 8px;
+      transition: all 0.3s;
+    }
+
+    .arch-step:hover .arch-icon {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-hover);
+      transform: scale(1.05);
+    }
+
+    .arch-step-core .arch-icon {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+
+    .arch-icon i {
+      width: 18px;
+      height: 18px;
+      color: var(--text-3);
+    }
+
+    .arch-step-core .arch-icon i {
+      color: var(--brand-blue);
+    }
+
+    .arch-nb {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-4);
+      margin-bottom: 2px;
+    }
+
+    .arch-step-core .arch-nb {
+      color: var(--brand-blue);
+    }
+
+    .arch-name {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .arch-sub {
+      font-size: 10px;
+      color: var(--text-4);
+      margin-top: 2px;
+    }
+
+    .arch-arrow {
+      color: var(--text-4);
+      font-size: 18px;
+      padding: 0 6px;
+      opacity: 0.4;
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 48px;
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    footer p {
+      color: var(--text-4);
+      font-size: 11px;
+    }
+
+    footer a {
+      color: var(--text-3);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    footer a:hover {
+      color: var(--text-1);
+    }
+
+    /* ── Leaflet Overrides ── */
+    .leaflet-popup-content-wrapper {
+      background: rgba(10, 14, 26, 0.95) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-radius: 12px !important;
+      color: #f0f4ff !important;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6) !important;
+      padding: 0 !important;
+    }
+
+    .leaflet-popup-content {
+      margin: 16px !important;
+      font-family: 'Inter', sans-serif !important;
+    }
+
+    .leaflet-popup-tip {
+      background: rgba(10, 14, 26, 0.95) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-top: none !important;
+      border-left: none !important;
+    }
+
+    .leaflet-popup-close-button {
+      color: rgba(255, 255, 255, 0.3) !important;
+      font-size: 20px !important;
+      top: 8px !important;
+      right: 10px !important;
+    }
+
+    .leaflet-popup-close-button:hover {
+      color: rgba(255, 255, 255, 0.7) !important;
+    }
+
+    .leaflet-control-zoom a {
+      background: rgba(10, 14, 26, 0.9) !important;
+      color: rgba(255, 255, 255, 0.6) !important;
+      border-color: rgba(255, 255, 255, 0.08) !important;
+      backdrop-filter: blur(10px);
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: rgba(10, 14, 26, 0.95) !important;
+      color: #fff !important;
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(3, 4, 11, 0.7) !important;
+      color: rgba(255, 255, 255, 0.2) !important;
+      font-size: 9px !important;
+    }
+
+    .leaflet-control-attribution a {
+      color: rgba(255, 255, 255, 0.3) !important;
+    }
+
+    @keyframes map-pulse {
+      0% {
+        stroke-opacity: 0.6;
+        stroke-width: 3;
+      }
+
+      100% {
+        stroke-opacity: 0;
+        stroke-width: 12;
+        r: 20;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Aurora Blobs -->
+  <div class="aurora-blob"
+    style="width:50vw;height:50vw;top:-15%;left:-10%;background:radial-gradient(circle,rgba(59,130,246,0.1),transparent 70%);">
+  </div>
+  <div class="aurora-blob"
+    style="width:40vw;height:40vw;bottom:-10%;right:-10%;background:radial-gradient(circle,rgba(139,92,246,0.07),transparent 70%);animation-delay:-7s;">
+  </div>
+  <div class="aurora-blob"
+    style="width:30vw;height:30vw;top:40%;right:20%;background:radial-gradient(circle,rgba(6,182,212,0.05),transparent 70%);animation-delay:-13s;">
+  </div>
+
+  <div class="container">
+
+    <!-- ═══════ HEADER ═══════ -->
+    <header class="reveal">
+      <div class="header-inner">
+        <div class="logo">
+          <div class="logo-icon"><i data-lucide="radar"></i></div>
+          <div class="logo-text">
+            <h1>Crisis Detection System</h1>
+            <p>XLM-RoBERTa &middot; 7-Class NLP &middot; Indonesia &middot; 10Academy</p>
+          </div>
+        </div>
+        <div class="live-badge">
+          <div class="live-dot"></div> PIPELINE ACTIVE
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══════ STAT CARDS ═══════ -->
+    <p class="section-label reveal">Model Performance</p>
+    <div class="stats-grid">
+      <div class="stat-card glass reveal stagger-1" style="--stat-color:var(--brand-blue)">
+        <div class="stat-label"><i data-lucide="target"></i> Val Accuracy</div>
+        <div class="stat-value" style="color:var(--brand-blue)" data-counter="96.7" data-suffix="%">0%</div>
+        <div class="stat-sub">Best epoch 5 of 5</div>
+      </div>
+      <div class="stat-card glass reveal stagger-2" style="--stat-color:#10b981">
+        <div class="stat-label"><i data-lucide="check-circle"></i> Test Accuracy</div>
+        <div class="stat-value" style="color:#10b981" data-counter="96.0" data-suffix="%">0%</div>
+        <div class="stat-sub">4,956 held-out samples</div>
+      </div>
+      <div class="stat-card glass reveal stagger-3" style="--stat-color:var(--brand-purple)">
+        <div class="stat-label"><i data-lucide="bar-chart-3"></i> Macro F1</div>
+        <div class="stat-value" style="color:var(--brand-purple)" data-counter="0.96">0</div>
+        <div class="stat-sub">Across 7 classes</div>
+      </div>
+      <div class="stat-card glass reveal stagger-4" style="--stat-color:#f59e0b">
+        <div class="stat-label"><i data-lucide="database"></i> Training Samples</div>
+        <div class="stat-value" style="color:#f59e0b" data-counter="28415" data-suffix="">0</div>
+        <div class="stat-sub">After enrichment</div>
+      </div>
+      <div class="stat-card glass reveal stagger-5" style="--stat-color:var(--quake)">
+        <div class="stat-label"><i data-lucide="activity"></i> Earthquake F1</div>
+        <div class="stat-value" style="color:var(--quake)" data-counter="1.00">0</div>
+        <div class="stat-sub">Perfect score</div>
+      </div>
+      <div class="stat-card glass reveal stagger-6" style="--stat-color:var(--fire)">
+        <div class="stat-label"><i data-lucide="flame"></i> Fire F1</div>
+        <div class="stat-value" style="color:var(--fire)" data-counter="1.00">0</div>
+        <div class="stat-sub">Perfect score</div>
+      </div>
+      <div class="stat-card glass reveal stagger-7" style="--stat-color:var(--brand-cyan)">
+        <div class="stat-label"><i data-lucide="map-pin"></i> Events Detected</div>
+        <div class="stat-value" style="color:var(--brand-cyan)" data-counter="19">0</div>
+        <div class="stat-sub">From 75 live posts</div>
+      </div>
+      <div class="stat-card glass reveal stagger-8" style="--stat-color:var(--storm)">
+        <div class="stat-label"><i data-lucide="shield-check"></i> Coverage</div>
+        <div class="stat-value" style="color:var(--storm)" data-counter="96" data-suffix="%">0%</div>
+        <div class="stat-sub">Confidence &ge; 0.70</div>
+      </div>
+    </div>
+
+    <!-- ═══════ MAP ═══════ -->
+    <p class="section-label reveal">Interactive Crisis Map &mdash; Indonesia</p>
+    <div id="crisis-map" class="reveal"></div>
+
+    <!-- ═══════ F1 + TRAINING ═══════ -->
+    <div class="grid-2">
+
+      <!-- Per-class F1 -->
+      <div class="glass card reveal">
+        <div class="card-title"><i data-lucide="bar-chart-3"></i> Per-Class F1 Score</div>
+        <div class="f1-row">
+          <div class="f1-header">
+            <span class="f1-label"><span class="f1-label-dot" style="background:var(--flood)"></span> Flood</span>
+            <span class="f1-score" style="color:var(--flood)">0.96</span>
+          </div>
+          <div class="f1-bar-bg">
+            <div class="f1-bar" style="--w:96%;background:var(--flood)"></div>
+          </div>
+        </div>
+        <div class="f1-row">
+          <div class="f1-header">
+            <span class="f1-label"><span class="f1-label-dot" style="background:var(--quake)"></span> Earthquake</span>
+            <span class="f1-score" style="color:var(--quake)">1.00</span>
+          </div>
+          <div class="f1-bar-bg">
+            <div class="f1-bar" style="--w:100%;background:var(--quake)"></div>
+          </div>
+        </div>
+        <div class="f1-row">
+          <div class="f1-header">
+            <span class="f1-label"><span class="f1-label-dot" style="background:var(--fire)"></span> Fire</span>
+            <span class="f1-score" style="color:var(--fire)">1.00</span>
+          </div>
+          <div class="f1-bar-bg">
+            <div class="f1-bar" style="--w:100%;background:var(--fire)"></div>
+          </div>
+        </div>
+        <div class="f1-row">
+          <div class="f1-header">
+            <span class="f1-label"><span class="f1-label-dot" style="background:var(--accident)"></span> Accident</span>
+            <span class="f1-score" style="color:var(--accident)">0.96</span>
+          </div>
+          <div class="f1-bar-bg">
+            <div class="f1-bar" style="--w:96%;background:var(--accident)"></div>
+          </div>
+        </div>
+        <div class="f1-row">
+          <div class="f1-header">
+            <span class="f1-label"><span class="f1-label-dot" style="background:var(--violence)"></span> Violence</span>
+            <span class="f1-score" style="color:var(--violence)">0.96</span>
+          </div>
+          <div class="f1-bar-bg">
+            <div class="f1-bar" style="--w:96%;background:var(--violence)"></div>
+          </div>
+        </div>
+        <div class="f1-row">
+          <div class="f1-header">
+            <span class="f1-label"><span class="f1-label-dot" style="background:var(--storm)"></span> Storm</span>
+            <span class="f1-score" style="color:var(--storm)">0.95</span>
+          </div>
+          <div class="f1-bar-bg">
+            <div class="f1-bar" style="--w:95%;background:var(--storm)"></div>
+          </div>
+        </div>
+        <div class="f1-row">
+          <div class="f1-header">
+            <span class="f1-label"><span class="f1-label-dot" style="background:var(--other)"></span> Other</span>
+            <span class="f1-score" style="color:var(--other)">0.90</span>
+          </div>
+          <div class="f1-bar-bg">
+            <div class="f1-bar" style="--w:90%;background:var(--other)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Training Progression + Enrichment -->
+      <div class="glass card reveal">
+        <div class="card-title"><i data-lucide="trending-up"></i> Training Progression</div>
+        <div style="margin-bottom:20px;">
+          <div class="epoch-row">
+            <span class="epoch-num">Epoch 1</span>
+            <div class="epoch-acc-bar-bg">
+              <div class="epoch-acc-bar" style="--w:94.8%"></div>
+            </div>
+            <span class="epoch-val">94.8%</span>
+          </div>
+          <div class="epoch-row">
+            <span class="epoch-num">Epoch 2</span>
+            <div class="epoch-acc-bar-bg">
+              <div class="epoch-acc-bar" style="--w:96.4%"></div>
+            </div>
+            <span class="epoch-val">96.4%</span>
+          </div>
+          <div class="epoch-row">
+            <span class="epoch-num">Epoch 3</span>
+            <div class="epoch-acc-bar-bg">
+              <div class="epoch-acc-bar" style="--w:96.4%"></div>
+            </div>
+            <span class="epoch-val">96.4%</span>
+          </div>
+          <div class="epoch-row">
+            <span class="epoch-num">Epoch 4</span>
+            <div class="epoch-acc-bar-bg">
+              <div class="epoch-acc-bar" style="--w:96.5%"></div>
+            </div>
+            <span class="epoch-val">96.5%</span>
+          </div>
+          <div class="epoch-row">
+            <span class="epoch-num" style="color:var(--brand-purple)">Epoch 5 <i data-lucide="star"
+                style="width:10px;height:10px;display:inline;vertical-align:middle;"></i></span>
+            <div class="epoch-acc-bar-bg">
+              <div class="epoch-acc-bar" style="--w:96.7%"></div>
+            </div>
+            <span class="epoch-val epoch-best">96.7%</span>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:20px;">
+          <div class="card-title" style="font-size:13px;margin-bottom:14px;"><i data-lucide="layers"></i> Data
+            Enrichment Impact</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div class="enrich-card">
+              <div class="enrich-label">Baseline</div>
+              <div class="enrich-value" style="color:var(--brand-blue)">95.4%</div>
+              <div class="enrich-sub">Run 1</div>
+            </div>
+            <div class="enrich-card">
+              <div class="enrich-label">+ Earthquake</div>
+              <div class="enrich-value" style="color:#f59e0b">95.6%</div>
+              <div class="enrich-sub">+0.2pp</div>
+            </div>
+            <div class="enrich-card" style="border-color:rgba(239,68,68,0.2);background:rgba(239,68,68,0.04);">
+              <div class="enrich-label">+ Fire</div>
+              <div class="enrich-value" style="color:var(--fire)">96.7%</div>
+              <div class="enrich-sub">+1.3pp total</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ EVENTS TABLE + SHAP + CREDIBILITY ═══════ -->
+    <div class="grid-2">
+
+      <!-- Events table -->
+      <div class="glass card reveal">
+        <div class="card-title"><i data-lucide="map-pin"></i> Detected Crisis Events <span
+            style="margin-left:auto;font-size:11px;color:var(--text-4);font-weight:400;" id="event-count">19
+            total</span></div>
+
+        <div class="filter-bar" id="filter-bar">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="flood"><span class="badge-dot"
+              style="background:var(--flood);display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;"></span>Flood</button>
+          <button class="filter-btn" data-filter="earthquake"><span class="badge-dot"
+              style="background:var(--quake);display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;"></span>Quake</button>
+          <button class="filter-btn" data-filter="fire"><span class="badge-dot"
+              style="background:var(--fire);display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;"></span>Fire</button>
+          <button class="filter-btn" data-filter="accident"><span class="badge-dot"
+              style="background:var(--accident);display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;"></span>Accident</button>
+          <button class="filter-btn" data-filter="violence"><span class="badge-dot"
+              style="background:var(--violence);display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;"></span>Violence</button>
+          <button class="filter-btn" data-filter="storm"><span class="badge-dot"
+              style="background:var(--storm);display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;"></span>Storm</button>
+        </div>
+
+        <div style="overflow-x:auto;max-height:420px;overflow-y:auto;">
+          <table class="events-table" id="events-table">
+            <thead style="position:sticky;top:0;background:rgba(3,4,11,0.95);backdrop-filter:blur(8px);z-index:2;">
+              <tr>
+                <th>Event</th>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Posts</th>
+              </tr>
+            </thead>
+            <tbody id="events-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SHAP + Credibility -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <div class="glass card reveal">
+          <div class="card-title"><i data-lucide="scan-eye"></i> SHAP Explainability</div>
+
+          <div class="shap-block">
+            <div class="shap-text">"roads completely flooded in jakarta selatan nobody can pass"</div>
+            <div class="shap-pred">&rarr; <strong style="color:var(--flood)">FLOOD</strong> 99.88% confidence</div>
+            <div class="shap-tokens">
+              <span class="shap-badge shap-pos">flood +0.533</span>
+              <span class="shap-badge shap-pos">road +0.464</span>
+              <span class="shap-badge shap-pos">completely +0.011</span>
+              <span class="shap-badge shap-neg">s &minus;0.011</span>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid var(--border);padding-top:16px;">
+            <div class="shap-block">
+              <div class="shap-text">"Earthquake M5.2 at depth 10km in 29km Tenggara PALU-SULTENG"</div>
+              <div class="shap-pred">&rarr; <strong style="color:var(--quake)">EARTHQUAKE</strong> 99.95% confidence
+              </div>
+              <div class="shap-tokens">
+                <span class="shap-badge shap-pos">km +0.353</span>
+                <span class="shap-badge shap-pos">km +0.250</span>
+                <span class="shap-badge shap-pos">Tenggara +0.146</span>
+                <span class="shap-badge shap-pos">Earth +0.095</span>
+                <span class="shap-badge shap-neg">29 &minus;0.061</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass card reveal">
+          <div class="card-title"><i data-lucide="shield-check"></i> Source Credibility</div>
+
+          <div class="cred-row">
+            <span class="cred-source"><i data-lucide="landmark"></i> BMKG (Official)</span>
+            <div class="cred-meter">
+              <div class="cred-bar-bg">
+                <div class="cred-bar" style="--w:100%;background:#10b981"></div>
+              </div>
+              <span class="cred-val">1.00</span>
+            </div>
+          </div>
+          <div class="cred-row">
+            <span class="cred-source"><i data-lucide="send"></i> Telegram</span>
+            <div class="cred-meter">
+              <div class="cred-bar-bg">
+                <div class="cred-bar" style="--w:49%;background:var(--brand-blue)"></div>
+              </div>
+              <span class="cred-val">0.49</span>
+            </div>
+          </div>
+          <div class="cred-row">
+            <span class="cred-source"><i data-lucide="message-circle"></i> Reddit</span>
+            <div class="cred-meter">
+              <div class="cred-bar-bg">
+                <div class="cred-bar" style="--w:44%;background:#f59e0b"></div>
+              </div>
+              <span class="cred-val">0.44</span>
+            </div>
+          </div>
+          <div class="cred-row">
+            <span class="cred-source"><i data-lucide="rss"></i> News RSS</span>
+            <div class="cred-meter">
+              <div class="cred-bar-bg">
+                <div class="cred-bar" style="--w:37%;background:var(--brand-purple)"></div>
+              </div>
+              <span class="cred-val">0.37</span>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+            <div class="summary-row"><span>Total posts ingested</span><span class="summary-val"
+                style="color:var(--text-2);">75</span></div>
+            <div class="summary-row"><span>Classified (conf &ge; 0.7)</span><span class="summary-val"
+                style="color:#10b981;">72 (96%)</span></div>
+            <div class="summary-row"><span>Uncertain</span><span class="summary-val" style="color:#f59e0b;">3
+                (4%)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ ARCHITECTURE ═══════ -->
+    <div class="glass card reveal" style="margin-bottom:24px;">
+      <div class="card-title"><i data-lucide="workflow"></i> Pipeline Architecture</div>
+      <div class="arch-flow">
+        <div class="arch-step">
+          <div class="arch-icon"><i data-lucide="radio-tower"></i></div>
+          <div class="arch-nb">NB01 / 01B</div>
+          <div class="arch-name">Data Collection</div>
+          <div class="arch-sub">Reddit &middot; BMKG &middot; RSS</div>
+        </div>
+        <div class="arch-arrow">&rarr;</div>
+        <div class="arch-step">
+          <div class="arch-icon"><i data-lucide="filter"></i></div>
+          <div class="arch-nb">NB02 / 03</div>
+          <div class="arch-name">Preprocessing</div>
+          <div class="arch-sub">Clean &middot; Geo &middot; Features</div>
+        </div>
+        <div class="arch-arrow">&rarr;</div>
+        <div class="arch-step arch-step-core">
+          <div class="arch-icon"><i data-lucide="brain"></i></div>
+          <div class="arch-nb">NB04 &mdash; CORE</div>
+          <div class="arch-name">XLM-RoBERTa</div>
+          <div class="arch-sub">96.7% accuracy</div>
+        </div>
+        <div class="arch-arrow">&rarr;</div>
+        <div class="arch-step">
+          <div class="arch-icon"><i data-lucide="git-merge"></i></div>
+          <div class="arch-nb">NB05</div>
+          <div class="arch-name">Clustering</div>
+          <div class="arch-sub">SBERT &middot; DBSCAN</div>
+        </div>
+        <div class="arch-arrow">&rarr;</div>
+        <div class="arch-step">
+          <div class="arch-icon"><i data-lucide="scan-eye"></i></div>
+          <div class="arch-nb">NB06</div>
+          <div class="arch-name">Explainability</div>
+          <div class="arch-sub">SHAP &middot; Evaluation</div>
+        </div>
+        <div class="arch-arrow">&rarr;</div>
+        <div class="arch-step">
+          <div class="arch-icon"><i data-lucide="layout-dashboard"></i></div>
+          <div class="arch-nb">NB07</div>
+          <div class="arch-name">Dashboard</div>
+          <div class="arch-sub">Folium &middot; GeoJSON</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ FOOTER ═══════ -->
+    <footer class="reveal">
+      <p>Real-Time Crisis Detection System &middot;</p>
+      <p>XLM-RoBERTa &middot; SBERT &middot; SHAP &middot; Folium &middot; <a href="#">MIT License</a></p>
+    </footer>
+
+  </div>
+
+  <script>
+    // ── Initialize Lucide Icons ──
+    lucide.createIcons();
+
+    // ── Crisis Events Data ──
+    const events = [
+      { lat: -6.21, lon: 106.85, type: 'flood', label: 'Jakarta Banjir Cluster', loc: 'Jakarta, DKI Jakarta', severity: 'medium', posts: 3, conf: 0.970 },
+      { lat: -0.90, lon: 119.87, type: 'earthquake', label: 'Gempa Palu M5.2', loc: 'Palu, Sulawesi Tengah', severity: 'medium', posts: 2, conf: 0.999 },
+      { lat: -8.58, lon: 116.12, type: 'earthquake', label: 'Gempa Lombok M6.0', loc: 'Lombok, NTB', severity: 'high', posts: 2, conf: 0.998 },
+      { lat: -1.50, lon: 113.80, type: 'fire', label: 'Kebakaran Hutan Kalimantan', loc: 'Kalimantan Tengah', severity: 'high', posts: 2, conf: 0.950 },
+      { lat: 1.47, lon: 124.84, type: 'flood', label: 'Banjir Bandang Sulawesi', loc: 'Manado, Sulawesi Utara', severity: 'low', posts: 1, conf: 0.890 },
+      { lat: 5.55, lon: 95.32, type: 'earthquake', label: 'Gempa Aceh M5.5', loc: 'Banda Aceh, Aceh', severity: 'medium', posts: 2, conf: 0.997 },
+      { lat: -6.17, lon: 106.82, type: 'fire', label: 'Kebakaran Pasar Tanah Abang', loc: 'Jakarta Pusat', severity: 'medium', posts: 1, conf: 0.930 },
+      { lat: -10.17, lon: 123.61, type: 'earthquake', label: 'Gempa Kupang M4.8', loc: 'Kupang, NTT', severity: 'low', posts: 1, conf: 0.991 },
+      { lat: -6.29, lon: 106.82, type: 'flood', label: 'Banjir Jakarta Selatan', loc: 'Jakarta Selatan', severity: 'low', posts: 1, conf: 0.998 },
+      { lat: -6.50, lon: 107.50, type: 'accident', label: 'Kecelakaan Tol Cipali', loc: 'Jawa Barat', severity: 'medium', posts: 1, conf: 0.880 },
+      { lat: -3.66, lon: 128.19, type: 'earthquake', label: 'Gempa Ambon M4.9', loc: 'Ambon, Maluku', severity: 'low', posts: 1, conf: 0.995 },
+      { lat: -7.25, lon: 112.75, type: 'flood', label: 'Banjir Surabaya', loc: 'Surabaya, Jawa Timur', severity: 'low', posts: 1, conf: 0.910 },
+      { lat: -8.34, lon: 115.09, type: 'other', label: 'Bali Incident', loc: 'Bali', severity: 'low', posts: 1, conf: 0.760 },
+      { lat: 0.54, lon: 101.45, type: 'fire', label: 'Kebakaran Riau', loc: 'Riau', severity: 'high', posts: 1, conf: 0.940 },
+      { lat: -6.22, lon: 106.83, type: 'violence', label: 'Jakarta Security Incident', loc: 'Jakarta', severity: 'low', posts: 1, conf: 0.820 },
+      { lat: -2.99, lon: 104.75, type: 'flood', label: 'Banjir Palembang', loc: 'Palembang, Sumsel', severity: 'low', posts: 1, conf: 0.880 },
+      { lat: -7.80, lon: 110.36, type: 'other', label: 'Yogyakarta Incident', loc: 'Yogyakarta', severity: 'low', posts: 1, conf: 0.740 },
+      { lat: 3.58, lon: 98.67, type: 'storm', label: 'Badai Medan', loc: 'Medan, Sumut', severity: 'low', posts: 1, conf: 0.870 },
+      { lat: -5.14, lon: 119.41, type: 'storm', label: 'Makassar Storm', loc: 'Makassar, Sulsel', severity: 'low', posts: 1, conf: 0.840 },
+    ];
+
+    const typeColors = {
+      flood: '#3b82f6', earthquake: '#f59e0b', fire: '#ef4444',
+      accident: '#64748b', violence: '#a855f7', storm: '#06b6d4', other: '#10b981'
+    };
+    const typeLabels = {
+      flood: 'Flood', earthquake: 'Earthquake', fire: 'Fire',
+      accident: 'Accident', violence: 'Violence', storm: 'Storm', other: 'Other'
+    };
+
+    // ── Populate Events Table ──
+    const tbody = document.getElementById('events-tbody');
+    function renderTable(filter) {
+      const filtered = filter === 'all' ? events : events.filter(e => e.type === filter);
+      document.getElementById('event-count').textContent = filtered.length + ' shown';
+      tbody.innerHTML = filtered.map(ev => `
+    <tr data-type="${ev.type}">
+      <td>
+        <div class="event-name">${ev.label}</div>
+        <div class="event-loc"><i data-lucide="map-pin"></i> ${ev.loc}</div>
+      </td>
+      <td><span class="badge badge-${ev.type}"><span class="badge-dot" style="background:${typeColors[ev.type]}"></span>${typeLabels[ev.type]}</span></td>
+      <td><span class="badge sev-${ev.severity}">${ev.severity}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-3);">${ev.posts}</td>
+    </tr>
+  `).join('');
+      lucide.createIcons();
+    }
+    renderTable('all');
+
+    // ── Filter Buttons ──
+    document.getElementById('filter-bar').addEventListener('click', e => {
+      const btn = e.target.closest('.filter-btn');
+      if (!btn) return;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTable(btn.dataset.filter);
+    });
+
+    // ── Leaflet Map ──
+    const map = L.map('crisis-map', { center: [-2.5, 118], zoom: 5, zoomControl: true, scrollWheelZoom: true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 19,
+    }).addTo(map);
+
+    events.forEach(ev => {
+      const color = typeColors[ev.type] || '#888';
+      const r = ev.posts > 2 ? 13 : ev.posts > 1 ? 10 : 7;
+
+      L.circleMarker([ev.lat, ev.lon], {
+        radius: r, fillColor: color, color: 'rgba(255,255,255,0.3)',
+        weight: 1.5, fillOpacity: 0.85,
+      }).addTo(map).bindPopup(`
+    <div style="min-width:210px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px;">${ev.label}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <span style="background:${color}18;color:${color};border:1px solid ${color}30;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;">${typeLabels[ev.type]}</span>
+        <span style="background:${ev.severity === 'high' ? '#ef444418' : ev.severity === 'medium' ? '#f59e0b18' : '#10b98118'};color:${ev.severity === 'high' ? '#ef4444' : ev.severity === 'medium' ? '#f59e0b' : '#10b981'};border:1px solid ${ev.severity === 'high' ? '#ef444430' : ev.severity === 'medium' ? '#f59e0b30' : '#10b98130'};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;">${ev.severity}</span>
+      </div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <tr><td style="color:rgba(255,255,255,0.4);padding:3px 0;">Posts</td><td style="font-weight:600;text-align:right;">${ev.posts}</td></tr>
+        <tr><td style="color:rgba(255,255,255,0.4);padding:3px 0;">Confidence</td><td style="font-weight:600;text-align:right;">${(ev.conf * 100).toFixed(1)}%</td></tr>
+        <tr><td style="color:rgba(255,255,255,0.4);padding:3px 0;">Coordinates</td><td style="font-weight:600;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;">${ev.lat.toFixed(2)}, ${ev.lon.toFixed(2)}</td></tr>
+      </table>
+    </div>
+  `);
+
+      if (ev.severity === 'high') {
+        const svg = `<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="10" fill="none" stroke="${color}" stroke-width="1.5"><animate attributeName="r" from="10" to="22" dur="2s" begin="0s" repeatCount="indefinite"/><animate attributeName="stroke-opacity" from="0.6" to="0" dur="2s" begin="0s" repeatCount="indefinite"/></circle></svg>`;
+        L.marker([ev.lat, ev.lon], {
+          icon: L.divIcon({ html: svg, className: '', iconSize: [40, 40], iconAnchor: [20, 20] }),
+          interactive: false,
+        }).addTo(map);
+      }
+    });
+
+    // Legend
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function () {
+      const d = L.DomUtil.create('div');
+      d.style.cssText = 'background:rgba(3,4,11,0.92);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;font-family:Inter,sans-serif;backdrop-filter:blur(12px);';
+      d.innerHTML = `<div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.3);margin-bottom:10px;letter-spacing:0.1em;">CRISIS TYPE</div>` +
+        Object.entries(typeColors).map(([t, c]) =>
+          `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div><span style="font-size:11px;color:rgba(255,255,255,0.7);">${typeLabels[t]}</span></div>`
+        ).join('');
+      return d;
+    };
+    legend.addTo(map);
+
+    // ── Scroll Reveal ──
+    const revealObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('active'); });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+
+    // ── Animated Bars ──
+    const barObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('active'); });
+    }, { threshold: 0.2 });
+    document.querySelectorAll('.f1-bar, .epoch-acc-bar, .cred-bar').forEach(el => barObs.observe(el));
+
+    // ── Counter Animation ──
+    const counterObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && !entry.target.dataset.done) {
+          entry.target.dataset.done = '1';
+          animateCounter(entry.target);
+        }
+      });
+    }, { threshold: 0.5 });
+    document.querySelectorAll('[data-counter]').forEach(el => counterObs.observe(el));
+
+    function animateCounter(el) {
+      const target = parseFloat(el.dataset.counter);
+      const suffix = el.dataset.suffix || '';
+      const dur = 1800;
+      const start = performance.now();
+      const isInt = target === Math.floor(target) && target > 5;
+      (function tick(now) {
+        const p = Math.min((now - start) / dur, 1);
+        const ease = 1 - Math.pow(1 - p, 3);
+        const v = target * ease;
+        el.textContent = (isInt ? Math.round(v).toLocaleString() : v.toFixed(2)) + suffix;
+        if (p < 1) requestAnimationFrame(tick);
+      })(start);
+    }
+  </script>
+
+</body>
+
+</html>

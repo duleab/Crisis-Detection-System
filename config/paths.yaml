@@ -1,0 +1,17 @@
+data:
+  raw: "data/raw/"
+  processed: "data/processed/"
+  external: "data/external/"
+  feedback: "data/feedback/"
+  stream_buffer: "data/stream_buffer/"
+
+models:
+  crisis_classifier: "models/crisis_classifier/"
+  credibility_model: "models/credibility_model.pkl"
+  sbert_cache: "models/sbert_embeddings_cache.pkl"
+  thresholds: "models/thresholds.json"
+
+outputs:
+  figures: "outputs/figures/"
+  predictions: "outputs/predictions/"
+  alerts: "outputs/alerts/"
